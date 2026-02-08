@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeviceLink - Dashboard</title>
+    <meta name="description" content="DeviceLink personal device interconnection dashboard">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#0c0c0c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-primary: #0c0c0c;
+            --bg-secondary: #141414;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-card-hover: rgba(255, 255, 255, 0.06);
+            --bg-glass: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.07);
+            --border-hover: rgba(255, 255, 255, 0.14);
+            --text-primary: #e8e8e8;
+            --text-secondary: #888;
+            --text-muted: #555;
+            --accent: #c0c0c0;
+            --accent-subtle: rgba(255, 255, 255, 0.06);
+            --green: #34d399;
+            --green-dim: rgba(52, 211, 153, 0.12);
+            --red: #f87171;
+            --red-dim: rgba(248, 113, 113, 0.12);
+            --yellow: #fbbf24;
+            --orange: #fb923c;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --transition: 0.2s ease;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Layout */
+        .app {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 48px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo svg {
+            width: 20px;
+            height: 20px;
+            stroke: var(--accent);
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
+        }
+
+        .header-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-top: 1px;
+        }
+
+        .connection-badge {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 14px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .ws-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--red);
+            transition: var(--transition);
+        }
+
+        .ws-dot.live {
+            background: var(--green);
+            box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);
+            animation: blink 2.5s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Sections */
+        .section {
+            margin-bottom: 48px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .section-header svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--text-muted);
+        }
+
+        .section-header h2 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .badge {
+            padding: 2px 9px;
+            background: var(--accent-subtle);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        /* Device Grid */
+        .devices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 12px;
+        }
+
+        .device-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .device-card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+        }
+
+        .device-card.offline {
+            opacity: 0.45;
+        }
+
+        .device-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .device-icon {
+            width: 42px;
+            height: 42px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .device-icon svg {
+            width: 20px;
+            height: 20px;
+            stroke: var(--text-secondary);
+            fill: none;
+        }
+
+        .status-tag {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 999px;
+            letter-spacing: 0.3px;
+        }
+
+        .status-tag.online {
+            color: var(--green);
+            background: var(--green-dim);
+        }
+
+        .status-tag.offline {
+            color: var(--text-muted);
+            background: var(--accent-subtle);
+        }
+
+        .status-tag .dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-tag.online .dot {
+            animation: blink 2.5s ease-in-out infinite;
+        }
+
+        .device-name {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 3px;
+            color: var(--text-primary);
+        }
+
+        .device-os {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+        }
+
+        .device-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .stat {
+            background: var(--bg-glass);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .stat-bar {
+            width: 100%;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 2px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+
+        .stat-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.8s ease;
+        }
+
+        .battery-fill {
+            background: var(--green);
+        }
+
+        .battery-fill.low {
+            background: var(--red);
+        }
+
+        .battery-fill.medium {
+            background: var(--yellow);
+        }
+
+        .storage-fill {
+            background: var(--text-secondary);
+        }
+
+        .device-footer {
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Clipboard */
+        .clipboard-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .clipboard-input-area {
+            display: flex;
+            gap: 10px;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .clipboard-input {
+            flex: 1;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            transition: var(--transition);
+            min-height: 42px;
+            max-height: 100px;
+        }
+
+        .clipboard-input:focus {
+            border-color: var(--border-hover);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .clipboard-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 20px;
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+
+        .btn svg {
+            width: 14px;
+            height: 14px;
+            stroke: var(--bg-primary);
+        }
+
+        .btn:hover {
+            opacity: 0.85;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .clipboard-list {
+            max-height: 480px;
+            overflow-y: auto;
+        }
+
+        .clipboard-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .clipboard-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .clipboard-list::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        .clipboard-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            transition: var(--transition);
+        }
+
+        .clipboard-item:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .clipboard-item:last-child {
+            border-bottom: none;
+        }
+
+        .clip-avatar {
+            width: 32px;
+            height: 32px;
+            background: var(--accent-subtle);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .clip-avatar svg {
+            width: 16px;
+            height: 16px;
+            stroke: var(--text-muted);
+            fill: none;
+        }
+
+        .clip-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .clip-device {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 3px;
+            letter-spacing: 0.2px;
+        }
+
+        .clip-text {
+            font-size: 13px;
+            color: var(--text-primary);
+            word-break: break-all;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .clip-time {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .clip-actions {
+            display: flex;
+            gap: 2px;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .clipboard-item:hover .clip-actions {
+            opacity: 1;
+        }
+
+        .btn-icon {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-icon svg {
+            width: 14px;
+            height: 14px;
+            stroke: currentColor;
+            fill: none;
+        }
+
+        .btn-icon:hover {
+            background: var(--bg-glass);
+            border-color: var(--border);
+            color: var(--text-primary);
+        }
+
+        .btn-icon.copied {
+            color: var(--green);
+            background: var(--green-dim);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state svg {
+            width: 40px;
+            height: 40px;
+            stroke: var(--text-muted);
+            opacity: 0.3;
+            margin-bottom: 14px;
+        }
+
+        .empty-state p {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* Toasts */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .toast {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 16px;
+            font-size: 12px;
+            color: var(--text-primary);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: slideIn 0.25s ease-out;
+        }
+
+        .toast svg {
+            width: 14px;
+            height: 14px;
+            stroke: var(--text-secondary);
+            flex-shrink: 0;
+        }
+
+        .toast.fade-out {
+            animation: slideOut 0.2s ease-in forwards;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app {
+                padding: 20px 16px;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 14px;
+            }
+
+            .devices-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .clipboard-input-area {
+                flex-direction: column;
+            }
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .device-card,
+        .clipboard-item {
+            animation: fadeUp 0.3s ease-out;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                </div>
+                <div>
+                    <h1>DeviceLink</h1>
+                    <div class="header-subtitle">Personal Device Hub</div>
+                </div>
+            </div>
+            <div class="connection-badge">
+                <div class="ws-dot" id="wsDot"></div>
+                <span id="wsStatus">Connecting</span>
+            </div>
+        </header>
+
+        <!-- Devices -->
+        <section class="section">
+            <div class="section-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                    <line x1="12" y1="18" x2="12.01" y2="18" />
+                </svg>
+                <h2>Devices</h2>
+                <span class="badge" id="deviceCount">0</span>
+            </div>
+            <div class="devices-grid" id="devicesGrid">
+                <div class="empty-state" id="devicesEmpty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4" />
+                        <path d="M5 19.5C5.5 18 6 15 6 12" />
+                        <path d="M21 12a10 10 0 0 1-1 4.5" />
+                        <circle cx="12" cy="12" r="2" />
+                        <path d="M12 2v4" />
+                        <path d="M12 18v4" />
+                    </svg>
+                    <p>No devices connected yet.<br>Run the agent on your devices to get started.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Clipboard -->
+        <section class="section">
+            <div class="section-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                </svg>
+                <h2>Shared Clipboard</h2>
+                <span class="badge" id="clipCount">0</span>
+            </div>
+            <div class="clipboard-panel">
+                <div class="clipboard-input-area">
+                    <textarea class="clipboard-input" id="clipInput"
+                        placeholder="Type or paste content to share across devices..." rows="1"></textarea>
+                    <button class="btn" id="clipSend" onclick="sendClipboard()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                        Send
+                    </button>
+                </div>
+                <div class="clipboard-list" id="clipList">
+                    <div class="empty-state" id="clipEmpty">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                            <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                        </svg>
+                        <p>No clipboard entries yet.<br>Copy something on any device or type above.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ─── SVG Icon Templates ───
+        const SVG = {
+            mac: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+            phone: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+            tablet: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+            other: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+            clipboard: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
+            copy: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+            check: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+            trash: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+            info: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+        };
+
+        // ─── Config ───
+        const DASHBOARD_DEVICE_ID = "dashboard-" + Math.random().toString(36).substr(2, 9);
+        const API_BASE = window.location.origin;
+        const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+        const WS_URL = `${wsProto}//${location.host}/ws/${DASHBOARD_DEVICE_ID}`;
+
+        let ws = null;
+        let devices = {};
+        let clipboardEntries = [];
+        let reconnectTimer = null;
+
+        // ─── WebSocket ───
+        function connectWS() {
+            if (ws && ws.readyState === WebSocket.OPEN) return;
+            ws = new WebSocket(WS_URL);
+
+            ws.onopen = () => {
+                setConnStatus(true);
+                toast("Connected to server", "info");
+                fetch(`${API_BASE}/api/devices/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        device_id: DASHBOARD_DEVICE_ID,
+                        name: "Web Dashboard",
+                        device_type: "other",
+                        os: navigator.userAgent.includes("Mac") ? "macOS" :
+                            navigator.userAgent.includes("Android") ? "Android" :
+                                navigator.userAgent.includes("HarmonyOS") ? "HarmonyOS" : "Browser",
+                    }),
+                });
+                loadDevices();
+                loadClipboard();
+            };
+
+            ws.onmessage = e => handleMsg(JSON.parse(e.data));
+            ws.onclose = () => { setConnStatus(false); reconnectTimer = setTimeout(connectWS, 3000); };
+            ws.onerror = () => setConnStatus(false);
+        }
+
+        function setConnStatus(ok) {
+            document.getElementById("wsDot").classList.toggle("live", ok);
+            document.getElementById("wsStatus").textContent = ok ? "Live" : "Reconnecting";
+        }
+
+        function handleMsg(data) {
+            switch (data.type) {
+                case "clipboard_update":
+                    addClipEntry({ device_id: data.device_id, device_name: data.device_name, content: data.content, content_type: data.content_type, created_at: data.timestamp });
+                    toast(`${data.device_name} shared clipboard`);
+                    break;
+                case "device_status":
+                    if (data.device_id !== DASHBOARD_DEVICE_ID && devices[data.device_id]) {
+                        Object.assign(devices[data.device_id], data, { online: true });
+                        renderDevices();
+                    }
+                    break;
+                case "device_online":
+                    toast(`${data.name} is online`);
+                    loadDevices();
+                    break;
+                case "device_offline":
+                    toast(`${data.name} went offline`);
+                    loadDevices();
+                    break;
+            }
+        }
+
+        // ─── API ───
+        async function loadDevices() {
+            try {
+                const res = await fetch(`${API_BASE}/api/devices`);
+                const data = await res.json();
+                devices = {};
+                data.devices.forEach(d => { if (d.id !== DASHBOARD_DEVICE_ID) devices[d.id] = d; });
+                renderDevices();
+            } catch (e) { console.error("Load devices failed:", e); }
+        }
+
+        async function loadClipboard() {
+            try {
+                const res = await fetch(`${API_BASE}/api/clipboard?limit=50`);
+                const data = await res.json();
+                clipboardEntries = data.entries;
+                renderClipboard();
+            } catch (e) { console.error("Load clipboard failed:", e); }
+        }
+
+        async function sendClipboard() {
+            const input = document.getElementById("clipInput");
+            const content = input.value.trim();
+            if (!content) return;
+            try {
+                await fetch(`${API_BASE}/api/clipboard`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ device_id: DASHBOARD_DEVICE_ID, content, content_type: "text" }),
+                });
+                input.value = "";
+                input.style.height = "auto";
+                addClipEntry({ device_id: DASHBOARD_DEVICE_ID, device_name: "Web Dashboard", content, content_type: "text", created_at: new Date().toISOString() });
+                toast("Clipboard sent to all devices");
+            } catch (e) { toast("Failed to send clipboard"); }
+        }
+
+        // ─── Render ───
+        function renderDevices() {
+            const grid = document.getElementById("devicesGrid");
+            const empty = document.getElementById("devicesEmpty");
+            const list = Object.values(devices);
+            document.getElementById("deviceCount").textContent = list.length;
+
+            if (list.length === 0) {
+                grid.innerHTML = "";
+                grid.appendChild(empty);
+                empty.style.display = "";
+                return;
+            }
+            empty.style.display = "none";
+            grid.innerHTML = list.map(deviceCard).join("");
+        }
+
+        function deviceCard(d) {
+            const icon = SVG[d.device_type] || SVG.other;
+            const on = d.online;
+            const batClass = d.battery != null ? (d.battery <= 20 ? "low" : d.battery <= 50 ? "medium" : "") : "";
+            const storUsed = (d.storage_total && d.storage_free)
+                ? ((d.storage_total - d.storage_free) / d.storage_total * 100).toFixed(0) : null;
+            const seen = d.last_seen ? timeAgo(new Date(d.last_seen + "Z")) : "Never";
+
+            return `<div class="device-card ${on ? '' : 'offline'}">
+                <div class="device-top">
+                    <div class="device-icon">${icon}</div>
+                    <div class="status-tag ${on ? 'online' : 'offline'}"><div class="dot"></div>${on ? 'Online' : 'Offline'}</div>
+                </div>
+                <div class="device-name">${esc(d.name)}</div>
+                <div class="device-os">${esc(d.os || d.device_type)}</div>
+                <div class="device-stats">
+                    <div class="stat">
+                        <div class="stat-label">Battery</div>
+                        <div class="stat-value">${d.battery != null ? d.battery + '%' : '\u2014'}</div>
+                        ${d.battery != null ? `<div class="stat-bar"><div class="stat-bar-fill battery-fill ${batClass}" style="width:${d.battery}%"></div></div>` : ''}
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">Storage</div>
+                        <div class="stat-value">${storUsed != null ? storUsed + '%' : '\u2014'}</div>
+                        ${storUsed != null ? `<div class="stat-bar"><div class="stat-bar-fill storage-fill" style="width:${storUsed}%"></div></div>` : ''}
+                    </div>
+                </div>
+                <div class="device-footer"><span>${d.ip || 'No IP'}</span><span>${on ? 'Just now' : seen}</span></div>
+            </div>`;
+        }
+
+        function renderClipboard() {
+            const list = document.getElementById("clipList");
+            const empty = document.getElementById("clipEmpty");
+            document.getElementById("clipCount").textContent = clipboardEntries.length;
+
+            if (clipboardEntries.length === 0) {
+                list.innerHTML = "";
+                list.appendChild(empty);
+                empty.style.display = "";
+                return;
+            }
+            empty.style.display = "none";
+            list.innerHTML = clipboardEntries.map((e, i) => clipItem(e, i)).join("");
+        }
+
+        function addClipEntry(entry) {
+            clipboardEntries.unshift(entry);
+            if (clipboardEntries.length > 50) clipboardEntries.pop();
+            renderClipboard();
+        }
+
+        function clipItem(entry, i) {
+            const icon = SVG[getDeviceType(entry.device_id)] || SVG.clipboard;
+            const preview = entry.content.length > 300 ? entry.content.substring(0, 300) + "..." : entry.content;
+            const time = entry.created_at ? timeAgo(new Date(entry.created_at)) : "";
+
+            return `<div class="clipboard-item">
+                <div class="clip-avatar">${icon}</div>
+                <div class="clip-content">
+                    <div class="clip-device">${esc(entry.device_name || entry.device_id)}</div>
+                    <div class="clip-text">${esc(preview)}</div>
+                    <div class="clip-time">${time}</div>
+                </div>
+                <div class="clip-actions">
+                    <button class="btn-icon" onclick="copyClip(${i})" title="Copy" id="cpBtn${i}">${SVG.copy}</button>
+                    <button class="btn-icon" onclick="delClip('${entry.id}',${i})" title="Delete">${SVG.trash}</button>
+                </div>
+            </div>`;
+        }
+
+        function getDeviceType(id) { return devices[id]?.device_type || "other"; }
+
+        // ─── Actions ───
+        async function copyClip(i) {
+            const text = clipboardEntries[i]?.content;
+            if (!text) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                const btn = document.getElementById(`cpBtn${i}`);
+                btn.classList.add("copied");
+                btn.innerHTML = SVG.check;
+                setTimeout(() => { btn.classList.remove("copied"); btn.innerHTML = SVG.copy; }, 1500);
+            } catch (e) { toast("Clipboard access denied"); }
+        }
+
+        async function delClip(id, i) {
+            try {
+                await fetch(`${API_BASE}/api/clipboard/${id}`, { method: "DELETE" });
+                clipboardEntries.splice(i, 1);
+                renderClipboard();
+            } catch (e) { toast("Failed to delete"); }
+        }
+
+        // ─── Utils ───
+        function esc(t) { const d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
+
+        function timeAgo(date) {
+            const s = Math.floor((new Date() - date) / 1000);
+            if (s < 10) return "Just now";
+            if (s < 60) return `${s}s ago`;
+            if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+            if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+            return `${Math.floor(s / 86400)}d ago`;
+        }
+
+        function toast(msg) {
+            const c = document.getElementById("toastContainer");
+            const t = document.createElement("div");
+            t.className = "toast";
+            t.innerHTML = `${SVG.info}<span>${esc(msg)}</span>`;
+            c.appendChild(t);
+            setTimeout(() => { t.classList.add("fade-out"); setTimeout(() => t.remove(), 200); }, 2500);
+        }
+
+        // Textarea auto-resize
+        const inp = document.getElementById("clipInput");
+        inp.addEventListener("input", () => { inp.style.height = "auto"; inp.style.height = Math.min(inp.scrollHeight, 100) + "px"; });
+        inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendClipboard(); } });
+
+        // Init
+        connectWS();
+        setInterval(loadDevices, 30000);
+    </script>
+</body>
+
+</html>

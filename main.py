@@ -308,7 +308,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str, db: Session =
 async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
     """
     WebSocket tunnel for ADB remote screen control.
-    Each handler reads from its own WS and forwards to the peer's WS.
+    Pure binary relay - no JSON status messages in the data stream.
     """
     if role not in ("phone", "mac"):
         await websocket.close(code=4000, reason="Role must be 'phone' or 'mac'")
@@ -328,15 +328,6 @@ async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
     if pair.is_ready:
         pair.ready_event.set()
 
-    # Notify this side
-    try:
-        await websocket.send_json({
-            "type": "status",
-            "message": f"{role} connected, {'tunnel active, starting relay' if pair.is_ready else 'waiting for peer...'}"
-        })
-    except Exception:
-        pass
-
     # Wait for peer (up to 5 minutes)
     try:
         await asyncio.wait_for(pair.ready_event.wait(), timeout=300)
@@ -344,12 +335,6 @@ async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
         logger.info(f"Tunnel [{tunnel_id}] {role} timed out")
         tunnel_manager.remove(tunnel_id)
         return
-
-    # Send relay-start signal
-    try:
-        await websocket.send_json({"type": "status", "message": "tunnel active, starting relay"})
-    except Exception:
-        pass
 
     # Forward: read from MY websocket, write to PEER's websocket
     peer_ws = pair.get_peer_ws(role)
@@ -372,7 +357,6 @@ async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
         logger.info(f"Tunnel [{tunnel_id}] {role} ended: {type(e).__name__}")
     finally:
         tunnel_manager.remove(tunnel_id)
-        # Try to close peer
         try:
             await peer_ws.close()
         except Exception:

@@ -14,6 +14,7 @@ from typing import Optional
 import json
 import logging
 import os
+import asyncio
 
 from models import Device, ClipboardEntry, init_db, get_db
 from ws_manager import manager
@@ -318,6 +319,10 @@ async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
     await websocket.accept()
     pair = tunnel_manager.get_or_create(tunnel_id)
 
+    # Ensure the pair has a ready event
+    if not hasattr(pair, '_ready_event'):
+        pair._ready_event = asyncio.Event()
+
     if role == "phone":
         pair.phone_ws = websocket
         logger.info(f"Tunnel [{tunnel_id}] phone connected")
@@ -325,38 +330,47 @@ async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
         pair.mac_ws = websocket
         logger.info(f"Tunnel [{tunnel_id}] mac connected")
 
-    # Notify the peer that we're waiting / ready
+    # Notify this side
     try:
         await websocket.send_json({"type": "status", "message": f"{role} connected, waiting for peer..."})
     except Exception:
         pass
 
     if pair.is_ready:
-        # Both sides connected — start relay
+        # We are the second connector — signal the first one
+        pair._ready_event.set()
+
+    # Wait until both sides are connected
+    try:
+        await asyncio.wait_for(pair._ready_event.wait(), timeout=300)  # 5 min timeout
+    except asyncio.TimeoutError:
+        logger.info(f"Tunnel [{tunnel_id}] {role} timed out waiting for peer")
+        tunnel_manager.remove(tunnel_id)
+        await websocket.close()
+        return
+
+    # Notify both sides that relay is starting
+    try:
+        await websocket.send_json({"type": "status", "message": "tunnel active, starting relay"})
+    except Exception:
+        pass
+
+    # Only the second connector runs the relay (to avoid double-start)
+    if pair.is_ready and role == ("mac" if pair.mac_ws == websocket else "phone"):
         try:
-            # Notify both sides
-            for ws in [pair.phone_ws, pair.mac_ws]:
-                try:
-                    await ws.send_json({"type": "status", "message": "tunnel active, starting relay"})
-                except Exception:
-                    pass
             await pair.start_relay()
         finally:
             tunnel_manager.remove(tunnel_id)
     else:
-        # Wait for the other side to connect (the other side will trigger relay)
+        # First connector: just keep alive until relay ends or disconnects
         try:
             while True:
-                # Keep connection alive by reading (peer will trigger relay)
-                data = await websocket.receive()
-                if data.get("type") == "websocket.disconnect":
+                await asyncio.sleep(1)
+                # Check if tunnel was removed (relay ended)
+                if tunnel_id not in tunnel_manager._tunnels:
                     break
         except Exception:
             pass
-        finally:
-            # If we disconnect before pairing, clean up
-            if not pair.is_ready:
-                tunnel_manager.remove(tunnel_id)
 
 
 @app.get("/api/tunnels")

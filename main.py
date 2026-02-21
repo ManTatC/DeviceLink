@@ -304,44 +304,33 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str, db: Session =
 
 # ─── ADB Tunnel (Remote Screen Control) ───
 
-@app.websocket("/ws/tunnel/{tunnel_id}/{role}")
-async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
+@app.websocket("/ws/tunnel/{tunnel_id}")
+async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str):
     """
-    WebSocket tunnel for ADB remote screen control.
-    Pure binary relay - no JSON status messages in the data stream.
+    Multiplexed WebSocket tunnel. Pairs two connections by tunnel_id.
+    Purely forwards binary data - clients handle mux/demux.
     """
-    if role not in ("phone", "mac"):
-        await websocket.close(code=4000, reason="Role must be 'phone' or 'mac'")
-        return
-
     await websocket.accept()
     pair = tunnel_manager.get_or_create(tunnel_id)
+    side = pair.add_ws(websocket)
+    logger.info(f"Tunnel [{tunnel_id}] side {side} connected")
 
-    if role == "phone":
-        pair.phone_ws = websocket
-        logger.info(f"Tunnel [{tunnel_id}] phone connected")
-    else:
-        pair.mac_ws = websocket
-        logger.info(f"Tunnel [{tunnel_id}] mac connected")
-
-    # If both sides connected, signal ready
     if pair.is_ready:
         pair.ready_event.set()
 
-    # Wait for peer (up to 5 minutes)
+    # Wait for peer
     try:
         await asyncio.wait_for(pair.ready_event.wait(), timeout=300)
     except asyncio.TimeoutError:
-        logger.info(f"Tunnel [{tunnel_id}] {role} timed out")
+        logger.info(f"Tunnel [{tunnel_id}] side {side} timed out")
         tunnel_manager.remove(tunnel_id)
         return
 
-    # Forward: read from MY websocket, write to PEER's websocket
-    peer_ws = pair.get_peer_ws(role)
+    peer_ws = pair.get_peer(side)
     if not peer_ws:
         return
 
-    logger.info(f"Tunnel [{tunnel_id}] {role} relay started")
+    logger.info(f"Tunnel [{tunnel_id}] side {side} relay started")
     try:
         while True:
             message = await websocket.receive()
@@ -349,12 +338,10 @@ async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
             if msg_type == "websocket.receive":
                 if message.get("bytes"):
                     await peer_ws.send_bytes(message["bytes"])
-                elif message.get("text"):
-                    await peer_ws.send_text(message["text"])
             elif msg_type == "websocket.disconnect":
                 break
     except Exception as e:
-        logger.info(f"Tunnel [{tunnel_id}] {role} ended: {type(e).__name__}")
+        logger.info(f"Tunnel [{tunnel_id}] side {side} ended: {type(e).__name__}")
     finally:
         tunnel_manager.remove(tunnel_id)
         try:

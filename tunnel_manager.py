@@ -1,8 +1,7 @@
 """
-DeviceLink - Tunnel Manager
-Manages WebSocket-based TCP tunnels for ADB remote screen control.
-Pairs phone-side and mac-side WebSocket connections by tunnel_id.
-Each handler forwards messages from its own WS to the peer's WS.
+DeviceLink - Tunnel Manager (v3 - Multiplexed)
+Pairs two WebSocket connections by tunnel_id.
+Purely forwards binary data - clients handle mux/demux.
 """
 
 import asyncio
@@ -13,28 +12,30 @@ logger = logging.getLogger("devicelink.tunnel")
 
 
 class TunnelPair:
-    """A pair of WebSocket connections (phone + mac) for one tunnel."""
-
     def __init__(self, tunnel_id: str):
         self.tunnel_id = tunnel_id
-        self.phone_ws: WebSocket | None = None
-        self.mac_ws: WebSocket | None = None
+        self.ws_a: WebSocket | None = None
+        self.ws_b: WebSocket | None = None
         self.ready_event = asyncio.Event()
 
     @property
     def is_ready(self) -> bool:
-        return self.phone_ws is not None and self.mac_ws is not None
+        return self.ws_a is not None and self.ws_b is not None
 
-    def get_peer_ws(self, role: str) -> WebSocket | None:
-        """Get the peer's WebSocket for a given role."""
-        if role == "phone":
-            return self.mac_ws
-        return self.phone_ws
+    def add_ws(self, ws: WebSocket) -> str:
+        """Add a WebSocket, returns 'a' or 'b'."""
+        if self.ws_a is None:
+            self.ws_a = ws
+            return "a"
+        else:
+            self.ws_b = ws
+            return "b"
+
+    def get_peer(self, side: str) -> WebSocket | None:
+        return self.ws_b if side == "a" else self.ws_a
 
 
 class TunnelManager:
-    """Manages all active tunnels."""
-
     def __init__(self):
         self._tunnels: dict[str, TunnelPair] = {}
 
@@ -47,16 +48,10 @@ class TunnelManager:
         self._tunnels.pop(tunnel_id, None)
 
     def list_tunnels(self) -> list[dict]:
-        result = []
-        for tid, pair in self._tunnels.items():
-            result.append({
-                "tunnel_id": tid,
-                "phone_connected": pair.phone_ws is not None,
-                "mac_connected": pair.mac_ws is not None,
-                "relaying": pair.is_ready,
-            })
-        return result
+        return [
+            {"tunnel_id": tid, "sides": (1 if p.ws_a else 0) + (1 if p.ws_b else 0), "ready": p.is_ready}
+            for tid, p in self._tunnels.items()
+        ]
 
 
-# Global singleton
 tunnel_manager = TunnelManager()

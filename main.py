@@ -17,6 +17,7 @@ import os
 
 from models import Device, ClipboardEntry, init_db, get_db
 from ws_manager import manager
+from tunnel_manager import tunnel_manager
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -298,6 +299,70 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str, db: Session =
     except Exception as e:
         logger.error(f"WebSocket error for {device_id}: {e}")
         manager.disconnect(device_id)
+
+
+# ─── ADB Tunnel (Remote Screen Control) ───
+
+@app.websocket("/ws/tunnel/{tunnel_id}/{role}")
+async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
+    """
+    WebSocket tunnel for ADB remote screen control.
+    role: 'phone' or 'mac'
+    Both sides connect with the same tunnel_id.
+    Once both are connected, binary data is relayed bidirectionally.
+    """
+    if role not in ("phone", "mac"):
+        await websocket.close(code=4000, reason="Role must be 'phone' or 'mac'")
+        return
+
+    await websocket.accept()
+    pair = tunnel_manager.get_or_create(tunnel_id)
+
+    if role == "phone":
+        pair.phone_ws = websocket
+        logger.info(f"Tunnel [{tunnel_id}] phone connected")
+    else:
+        pair.mac_ws = websocket
+        logger.info(f"Tunnel [{tunnel_id}] mac connected")
+
+    # Notify the peer that we're waiting / ready
+    try:
+        await websocket.send_json({"type": "status", "message": f"{role} connected, waiting for peer..."})
+    except Exception:
+        pass
+
+    if pair.is_ready:
+        # Both sides connected — start relay
+        try:
+            # Notify both sides
+            for ws in [pair.phone_ws, pair.mac_ws]:
+                try:
+                    await ws.send_json({"type": "status", "message": "tunnel active, starting relay"})
+                except Exception:
+                    pass
+            await pair.start_relay()
+        finally:
+            tunnel_manager.remove(tunnel_id)
+    else:
+        # Wait for the other side to connect (the other side will trigger relay)
+        try:
+            while True:
+                # Keep connection alive by reading (peer will trigger relay)
+                data = await websocket.receive()
+                if data.get("type") == "websocket.disconnect":
+                    break
+        except Exception:
+            pass
+        finally:
+            # If we disconnect before pairing, clean up
+            if not pair.is_ready:
+                tunnel_manager.remove(tunnel_id)
+
+
+@app.get("/api/tunnels")
+async def list_tunnels():
+    """List active tunnels."""
+    return {"tunnels": tunnel_manager.list_tunnels()}
 
 
 # ─── Static Files (Web Dashboard) ───

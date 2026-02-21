@@ -308,9 +308,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str, db: Session =
 async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
     """
     WebSocket tunnel for ADB remote screen control.
-    role: 'phone' or 'mac'
-    Both sides connect with the same tunnel_id.
-    Once both are connected, binary data is relayed bidirectionally.
+    Each handler reads from its own WS and forwards to the peer's WS.
     """
     if role not in ("phone", "mac"):
         await websocket.close(code=4000, reason="Role must be 'phone' or 'mac'")
@@ -319,10 +317,6 @@ async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
     await websocket.accept()
     pair = tunnel_manager.get_or_create(tunnel_id)
 
-    # Ensure the pair has a ready event
-    if not hasattr(pair, '_ready_event'):
-        pair._ready_event = asyncio.Event()
-
     if role == "phone":
         pair.phone_ws = websocket
         logger.info(f"Tunnel [{tunnel_id}] phone connected")
@@ -330,45 +324,57 @@ async def tunnel_endpoint(websocket: WebSocket, tunnel_id: str, role: str):
         pair.mac_ws = websocket
         logger.info(f"Tunnel [{tunnel_id}] mac connected")
 
+    # If both sides connected, signal ready
+    if pair.is_ready:
+        pair.ready_event.set()
+
     # Notify this side
     try:
-        await websocket.send_json({"type": "status", "message": f"{role} connected, waiting for peer..."})
+        await websocket.send_json({
+            "type": "status",
+            "message": f"{role} connected, {'tunnel active, starting relay' if pair.is_ready else 'waiting for peer...'}"
+        })
     except Exception:
         pass
 
-    if pair.is_ready:
-        # We are the second connector — signal the first one
-        pair._ready_event.set()
-
-    # Wait until both sides are connected
+    # Wait for peer (up to 5 minutes)
     try:
-        await asyncio.wait_for(pair._ready_event.wait(), timeout=300)  # 5 min timeout
+        await asyncio.wait_for(pair.ready_event.wait(), timeout=300)
     except asyncio.TimeoutError:
-        logger.info(f"Tunnel [{tunnel_id}] {role} timed out waiting for peer")
+        logger.info(f"Tunnel [{tunnel_id}] {role} timed out")
         tunnel_manager.remove(tunnel_id)
-        await websocket.close()
         return
 
-    # Notify both sides that relay is starting
+    # Send relay-start signal
     try:
         await websocket.send_json({"type": "status", "message": "tunnel active, starting relay"})
     except Exception:
         pass
 
-    # Only the second connector runs the relay (to avoid double-start)
-    if pair.is_ready and role == ("mac" if pair.mac_ws == websocket else "phone"):
+    # Forward: read from MY websocket, write to PEER's websocket
+    peer_ws = pair.get_peer_ws(role)
+    if not peer_ws:
+        return
+
+    logger.info(f"Tunnel [{tunnel_id}] {role} relay started")
+    try:
+        while True:
+            message = await websocket.receive()
+            msg_type = message.get("type", "")
+            if msg_type == "websocket.receive":
+                if message.get("bytes"):
+                    await peer_ws.send_bytes(message["bytes"])
+                elif message.get("text"):
+                    await peer_ws.send_text(message["text"])
+            elif msg_type == "websocket.disconnect":
+                break
+    except Exception as e:
+        logger.info(f"Tunnel [{tunnel_id}] {role} ended: {type(e).__name__}")
+    finally:
+        tunnel_manager.remove(tunnel_id)
+        # Try to close peer
         try:
-            await pair.start_relay()
-        finally:
-            tunnel_manager.remove(tunnel_id)
-    else:
-        # First connector: just keep alive until relay ends or disconnects
-        try:
-            while True:
-                await asyncio.sleep(1)
-                # Check if tunnel was removed (relay ended)
-                if tunnel_id not in tunnel_manager._tunnels:
-                    break
+            await peer_ws.close()
         except Exception:
             pass
 
